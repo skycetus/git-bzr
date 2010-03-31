@@ -133,11 +133,49 @@ function gitbzr_fetch_help() {
     exit 1
 }
 
+function gitbzr_fetch_branch() {
+    location=$1
+    remote=$2
+    if [ -n "$3" ] ; then
+        branch=$3
+        bzr_source="$location/$branch"
+    else
+        branch="master"
+        bzr_source="$location"
+    fi
+    git_branch="$remote/$branch"
+
+    gitdir=$(gitbzr_git_directory)
+    git_map="$gitdir/bzr-git/${remote}/${branch}-git-map"
+    bzr_map="$gitdir/bzr-git/${remote}/${branch}-bzr-map"
+
+    if [ ! -f "$git_map" -a ! -f "$bzr_map" ] ; then
+        echo "There doesn't seem to be an existing refmap. "
+        echo "Doing an initial import of $branch_source into $git_branch"
+        mkdir -p "$(dirname $git_map)"
+        bzr fast-export --export-marks=${bzr_map} \
+            --git-branch=${git_branch} ${bzr_source} \
+            | git fast-import --export-marks=${git_map}
+    elif [ -f "$git_map" -a -f "$bzr_map" ] ; then
+        echo "Updating branch ${git_branch}"
+        old_rev="$(git rev-parse ${remote})"
+        bzr fast-export --import-marks=${bzr_map} \
+            --export-marks=${bzr_map} --git-branch=${git_branch} ${bzr_source} \
+            | git fast-import --quiet --export-marks=${git_map} \
+            --import-marks=${git_map}
+        new_rev="$(git rev-parse ${remote})"
+        echo "Changes since last update:"
+        git shortlog ${old_rev}..${new_rev}
+    else
+        perror "One of the mapfiles is missing! Something went wrong!"
+        exit 1
+    fi
+}
+
 function gitbzr_fetch() {
     if [ $# -lt 1 ] ; then
         gitbzr_fetch_help
     fi
-    gitdir=$(gitbzr_git_directory)
     remote=$1
     shift
     args=$@
@@ -147,29 +185,14 @@ function gitbzr_fetch() {
     get_location "$remote"
     location=$return
 
-    git_map="$gitdir/bzr-git/${remote}-git-map"
-    bzr_map="$gitdir/bzr-git/${remote}-bzr-map"
-
-    if [ ! -f "$git_map" -a ! -f "$bzr_map" ] ; then
-        echo "There doesn't seem to be an existing refmap. "
-        echo "Doing an initial import"
-        mkdir -p "$(dirname $git_map)"
-        bzr fast-export --export-marks=${bzr_map} \
-            --git-branch=${remote} ${location} \
-            | git fast-import --export-marks=${git_map}
-    elif [ -f "$git_map" -a -f "$bzr_map" ] ; then
-        echo "Updating remote ${remote}"
-        old_rev="$(git rev-parse ${remote})"
-        bzr fast-export --import-marks=${bzr_map} \
-            --export-marks=${bzr_map} --git-branch=${remote} ${location} \
-            | git fast-import --quiet --export-marks=${git_map} \
-            --import-marks=${git_map}
-        new_rev="$(git rev-parse ${remote})"
-        echo "Changes since last update:"
-        git shortlog ${old_rev}..${new_rev}
+    branches=$(bzr branches $location)
+    if [ -z "$branches" ] ; then
+        # no branch -> branch, not shared repo
+        gitbzr_fetch_branch $location $remote
     else
-        perror "One of the mapfiles is missing! Something went wrong!"
-        exit 1
+        for branch in $branches ; do
+            gitbzr_fetch_branch $location $remote $branch
+        done
     fi
 }
 
