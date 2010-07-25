@@ -50,3 +50,12 @@ License
 
 The git-bzr script is licensed under the same license as Git.
 
+
+SEE ALSO
+========
+
+The following are rewrites in Python and may offer better bzr integration:
+
+  * http://github.com/termie/git-bzr-ng
+
+  * http://github.com/matthew-brett/git-bzr
