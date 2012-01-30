@@ -294,11 +294,12 @@ function gitbzr_run() {
             perror "Must be inside a git repository to work"
             exit 1
         fi
+        # Move to the top-most folder in the git working folder
+        # (so that file paths work)
         up=$(git rev-parse --show-cdup)
-        if [ "x$up" == "x" ] ; then
-            up="."
+        if [ "x$up" != "x" ] ; then
+            cd $up
         fi
-        cd $up
     fi
 
     case $cmd in
