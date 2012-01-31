@@ -35,6 +35,11 @@ function gitbzr_help_all() {
     echo >&2 "  show                        Print location of a tracked bzr branch"
     echo >&2 "  help                        Display help for a specific command"
     echo >&2
+    echo >&2 "Options:"
+    echo >&2
+    echo >&2 "  --version                   Show git-bzr version"
+    echo >&2 "  --help                      Show this message"
+    echo >&2
     echo >&2 "Arguments are detailed in each command's help message. For more"
     echo >&2 "information, use 'git bzr help <command>'"
     echo >&2
@@ -277,6 +282,7 @@ function gitbzr_run() {
             gitbzr_help_all 2>&1
             exit 0
         elif [ "x$1" = "x--manpage" ]; then
+            # Generate man page from help. Requires help2man, not intended for end users.
             help2man -N $0
             exit 0
         fi
@@ -294,11 +300,12 @@ function gitbzr_run() {
             perror "Must be inside a git repository to work"
             exit 1
         fi
+        # Move to the top-most folder in the git working folder
+        # (so that file paths work)
         up=$(git rev-parse --show-cdup)
-        if [ "x$up" == "x" ] ; then
-            up="."
+        if [ "x$up" != "x" ] ; then
+            cd $up
         fi
-        cd $up
     fi
 
     case $cmd in
