@@ -194,7 +194,7 @@ function gitbzr_fetch() {
     get_location "$remote"
     location=$return
 
-    branches=$(bzr branches $location)
+    branches=$(LANG=C bzr branches $location | sed -e 's/^\* //' | sed -e '/^(default)$/d')
     if [ -z "$branches" ] ; then
         # no branch -> branch, not shared repo
         gitbzr_fetch_branch $location $remote
