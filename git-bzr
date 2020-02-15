@@ -7,10 +7,10 @@
 # Bidirectional operation with Bazaar repositories. Add remote branches, pull
 # from them and push to them using this script.
 
-gitbzr_version='1.2'
+gitbzr_version='1.4'
 
 function gitbzr_help_header() {
-    echo >&2 "git-bzr - Bidirectional operation between Bazaar and git"
+    echo >&2 "git-bzr, git-brz - Bidirectional operation between Bazaar/Breezy and git"
 }
 
 function gitbzr_git_directory() {
@@ -42,6 +42,8 @@ function gitbzr_help_all() {
     echo >&2
     echo >&2 "Arguments are detailed in each command's help message. For more"
     echo >&2 "information, use 'git bzr help <command>'"
+    echo >&2
+    echo >&2 "Use 'git brz' to force breezy as a backend"
     echo >&2
 }
 
@@ -85,7 +87,7 @@ function gitbzr_add() {
         perror "There is already a bazaar branch with that name"
         exit 1
     fi
-    if ! bzr info -q ${location} > /dev/null 2>&1 ; then
+    if ! $bzr info -q ${location} > /dev/null 2>&1 ; then
         perror "Remote is not a bazaar repository"
         exit 1
     fi
@@ -151,14 +153,14 @@ function gitbzr_fetch_branch() {
     git_branch="$remote/$branch"
 
     gitdir=$(gitbzr_git_directory)
-    git_map="$gitdir/bzr-git/${remote}/${branch}-git-map"
-    bzr_map="$gitdir/bzr-git/${remote}/${branch}-bzr-map"
+    git_map="$gitdir/$bzr-git/${remote}/${branch}-git-map"
+    bzr_map="$gitdir/$bzr-git/${remote}/${branch}-bzr-map"
 
     if [ ! -f "$git_map" -a ! -f "$bzr_map" ] ; then
         echo "There doesn't seem to be an existing refmap. "
         echo "Doing an initial import of $branch_source into $git_branch"
         mkdir -p "$(dirname $git_map)"
-        bzr fast-export --export-marks=${bzr_map} \
+        $bzr fast-export --export-marks=${bzr_map} \
             --git-branch=${git_branch} ${bzr_source} \
             | sed -e 's@commit refs/heads@commit refs/remotes@g' \
                   -e '/^author <> [[:digit:]]\+ [+-][[:digit:]]\{4\}$/d' \
@@ -166,7 +168,7 @@ function gitbzr_fetch_branch() {
     elif [ -f "$git_map" -a -f "$bzr_map" ] ; then
         echo "Updating branch ${git_branch}"
         old_rev="$(git rev-parse ${git_branch})"
-        bzr fast-export --import-marks=${bzr_map} \
+        $bzr fast-export --import-marks=${bzr_map} \
             --export-marks=${bzr_map} --git-branch=${git_branch} ${bzr_source} \
             | sed -e 's@commit refs/heads@commit refs/remotes@g' \
                   -e '/^author <> [[:digit:]]\+ [+-][[:digit:]]\{4\}$/d' \
@@ -194,7 +196,8 @@ function gitbzr_fetch() {
     get_location "$remote"
     location=$return
 
-    branches=$(LANG=C bzr branches $location | sed -e 's/^\* //' | sed -e '/^(default)$/d')
+    branches=$(LANG=C $bzr branches $location |
+                      sed -e 's/^\* //' -e '/^(default)$/d')
     if [ -z "$branches" ] ; then
         # no branch -> branch, not shared repo
         gitbzr_fetch_branch $location $remote
@@ -239,8 +242,8 @@ function gitbzr_push() {
         exit
     fi
 
-    git_map="$gitdir/bzr-git/${remote}-git-map"
-    bzr_map="$gitdir/bzr-git/${remote}-bzr-map"
+    git_map="$gitdir/$bzr-git/${remote}-git-map"
+    bzr_map="$gitdir/$bzr-git/${remote}-bzr-map"
 
     if [ ! -f "$git_map" -o ! -f  "$bzr_map" ] ; then
         perror "We do not have refmapping yet. Then how can I push?"
@@ -249,7 +252,7 @@ function gitbzr_push() {
 
     git fast-export --import-marks=$git_map --export-marks=$git_map HEAD \
         | (cd $location \
-        && bzr fast-import --import-marks=$bzr_map --export-marks=$bzr_map -)
+        && $bzr fast-import --import-marks=$bzr_map --export-marks=$bzr_map -)
 }
 
 function gitbzr_help() {
@@ -333,5 +336,17 @@ function gitbzr_run() {
 }
 
 return=""
+
+echo basename $(basename $0)
+
+if basename $0 | grep -q brz; then
+    bzr=brz
+elif which bzr &> /dev/null; then
+    bzr=bzr
+elif which brz &> /dev/null; then
+    bzr=brz
+else
+    bzr=bzr
+fi
 
 gitbzr_run $@
